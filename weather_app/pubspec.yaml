@@ -37,6 +37,7 @@ dependencies:
   geolocator: ^11.0.1     # Location services
   flutter_spinkit: ^5.2.0 # Loading animations
   intl: ^0.18.1           # Date formatting
+  flutter_dotenv: ^5.1.0
   
   # Keeping cupertino_icons from the original file
   cupertino_icons: ^1.0.8
@@ -59,6 +60,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  assets:
+    - assets/.env 
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

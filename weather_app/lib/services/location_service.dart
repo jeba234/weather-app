@@ -29,7 +29,7 @@ class LocationService {
       // Check if location service is enabled
       bool serviceEnabled = await isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Location services are disabled.');
+       throw Exception('Location services are disabled. Please enable them in your device settings.');
       }
 
       // Check permission
@@ -38,18 +38,31 @@ class LocationService {
       if (permission == LocationPermission.denied) {
         permission = await requestPermission();
         if (permission == LocationPermission.denied) {
-          throw Exception('Location permissions are denied');
+           throw Exception('Location permissions are denied. Please enable them in app settings.');
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied, we cannot request permissions.');
+        throw Exception('Location permissions are permanently denied. Please enable them in your device settings.');
       }
 
       // Get the current position
       return await getCurrentPosition();
     } catch (e) {
       throw Exception('Error getting location: $e');
+    }
+  }
+  // New method to check if we have location access
+  Future<bool> hasLocationAccess() async {
+    try {
+      final serviceEnabled = await isLocationServiceEnabled();
+      if (!serviceEnabled) return false;
+
+      final permission = await checkPermission();
+      return permission == LocationPermission.always || 
+             permission == LocationPermission.whileInUse;
+    } catch (e) {
+      return false;
     }
   }
 }

@@ -1,16 +1,24 @@
-# weather_app
+# Weather App 🌤️
 
-A new Flutter project.
+A beautiful and functional weather application built with Flutter.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- 🌍 Current location weather
+- 🔍 Search by city name
+- 📅 5-day weather forecast
+- ❤️ Favorite cities
+- 🎨 Dynamic backgrounds based on weather
+- 📱 Responsive design
 
-A few resources to get you started if this is your first Flutter project:
+## Installation
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+1. Clone the repository
+2. Add your OpenWeatherMap API key to `assets/.env`
+3. Run `flutter pub get`
+4. Run `flutter run`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Build APK
+
+```bash
+flutter build apk --release

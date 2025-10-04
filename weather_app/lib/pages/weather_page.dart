@@ -1,32 +1,61 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../models/weather_model.dart';
+import '../models/weather_forecast_model.dart';
 import '../services/weather_service.dart';
 import '../services/location_service.dart';
-import '../widgets/weather_card.dart';
-import '../widgets/loading_indicator.dart';
-import '../widgets/error_message.dart';
+import '../services/favorites_service.dart';
+import '../widgets/weather_header.dart';
+import '../widgets/weather_details.dart';
+import '../widgets/hourly_forecast.dart';
+import '../widgets/daily_forecast_widget.dart'; // Updated import
+import '../widgets/search_sheet.dart';
+import '../utils/weather_utils.dart';
+import 'favorites_page.dart';
 
 class WeatherPage extends StatefulWidget {
-  const WeatherPage({Key? key}) : super(key: key);
+  final VoidCallback onThemeToggle;
+  final bool isDarkMode;
+
+  const WeatherPage({
+    Key? key, // Add this
+    required this.onThemeToggle,
+    required this.isDarkMode,
+  }) : super(key: key); // Add super call
 
   @override
   State<WeatherPage> createState() => _WeatherPageState();
 }
 
-class _WeatherPageState extends State<WeatherPage> {
+class _WeatherPageState extends State<WeatherPage> with SingleTickerProviderStateMixin {
   final WeatherService _weatherService = WeatherService();
   final LocationService _locationService = LocationService();
-  final TextEditingController _searchController = TextEditingController();
-
+  final FavoritesService _favoritesService = FavoritesService();
+  
   WeatherModel? _weather;
+  WeatherForecast? _forecast;
   bool _isLoading = false;
   String _errorMessage = '';
+  bool _isFavorite = false;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
     _initializeApp();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _initializeApp() async {
@@ -52,11 +81,20 @@ class _WeatherPageState extends State<WeatherPage> {
         position!.latitude,
         position.longitude,
       );
+      final forecast = await _weatherService.getWeatherForecastByLocation(
+        position.latitude,
+        position.longitude,
+      );
+      final isFavorite = await _favoritesService.isFavorite(weather.cityName);
       
       setState(() {
         _weather = weather;
+        _forecast = forecast;
+        _isFavorite = isFavorite;
         _isLoading = false;
       });
+      
+      _animationController.forward();
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to get location weather: $e';
@@ -75,11 +113,17 @@ class _WeatherPageState extends State<WeatherPage> {
 
     try {
       final weather = await _weatherService.getWeather(cityName);
+      final forecast = await _weatherService.getWeatherForecast(cityName);
+      final isFavorite = await _favoritesService.isFavorite(weather.cityName);
+      
       setState(() {
         _weather = weather;
+        _forecast = forecast;
+        _isFavorite = isFavorite;
         _isLoading = false;
-        _searchController.clear();
       });
+      
+      _animationController.forward();
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to get weather: $e';
@@ -88,125 +132,198 @@ class _WeatherPageState extends State<WeatherPage> {
     }
   }
 
-  void _retry() {
-    if (_searchController.text.isNotEmpty) {
-      _searchWeather(_searchController.text);
+  Future<void> _toggleFavorite() async {
+    if (_weather == null) return;
+
+    if (_isFavorite) {
+      await _favoritesService.removeFavorite(_weather!.cityName);
+      setState(() {
+        _isFavorite = false;
+      });
     } else {
-      _getLocationWeather();
+      await _favoritesService.addFavorite(_weather!.cityName);
+      setState(() {
+        _isFavorite = true;
+      });
     }
+  }
+
+  void _showSearchSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SearchSheet(onCitySelected: _searchWeather),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.blue[50],
-      appBar: AppBar(
-        title: const Text('Weather App'),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _getLocationWeather,
-            tooltip: 'Refresh with current location',
-          ),
-        ],
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
-          ? const LoadingIndicator()
+          ? _buildLoadingScreen()
           : _errorMessage.isNotEmpty
-              ? ErrorMessage(
-                  message: _errorMessage,
-                  onRetry: _retry,
-                )
-              : _buildWeatherContent(),
+              ? _buildErrorScreen()
+              : _buildWeatherScreen(),
+      floatingActionButton: _weather != null ? _buildFloatingActions() : null,
     );
   }
 
-  Widget _buildWeatherContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+  Widget _buildLoadingScreen() {
+    return Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Search Bar
-          _buildSearchBar(),
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
+          ),
           const SizedBox(height: 20),
-          
-          // Weather Display
-          if (_weather != null) WeatherCard(weather: _weather!),
-          
-          // Welcome message when no weather data
-          if (_weather == null) _buildWelcomeMessage(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+          Text(
+            'Loading Weather...',
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                hintText: 'Search city...',
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 20),
+    );
+  }
+
+  Widget _buildErrorScreen() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Something went wrong',
+              style: Theme.of(context).textTheme.displaySmall,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _getLocationWeather,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
-              onSubmitted: _searchWeather,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeatherScreen() {
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _fadeAnimation.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - _fadeAnimation.value) * 20),
+            child: child,
           ),
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => _searchWeather(_searchController.text),
-            color: Colors.blue[700],
+        );
+      },
+      child: CustomScrollView(
+        slivers: [
+          // Header Section
+          SliverAppBar(
+            expandedHeight: 200,
+            flexibleSpace: _weather != null
+                ? WeatherHeader(
+                    weather: _weather!,
+                    isFavorite: _isFavorite,
+                    onFavoriteToggle: _toggleFavorite,
+                  )
+                : null,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            pinned: true,
+            actions: [
+              IconButton(
+                icon: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+                onPressed: widget.onThemeToggle,
+              ),
+            ],
+          ),
+
+          // Weather Details
+          if (_weather != null)
+            SliverToBoxAdapter(
+              child: WeatherDetails(weather: _weather!),
+            ),
+
+          // Hourly Forecast
+          if (_forecast != null)
+            SliverToBoxAdapter(
+              child: HourlyForecast(forecast: _forecast!),
+            ),
+
+          // Daily Forecast
+          if (_forecast != null)
+            SliverToBoxAdapter(
+              child: DailyForecastWidget(forecast: _forecast!), // Updated widget name
+           ),  
+          // Bottom spacing
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 80),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildWelcomeMessage() {
-    return Container(
-      margin: const EdgeInsets.only(top: 100),
-      padding: const EdgeInsets.all(20),
-      child: Column(
+  Widget _buildFloatingActions() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Icon(
-            Icons.cloud,
-            size: 80,
-            color: Colors.blue[300],
+          FloatingActionButton(
+            heroTag: 'search_fab',
+            onPressed: _showSearchSheet,
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            foregroundColor: Theme.of(context).colorScheme.primary,
+            child: const Icon(Icons.search),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Welcome to Weather App!',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue[700],
-            ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            heroTag: 'location_fab',
+            onPressed: _getLocationWeather,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            child: const Icon(Icons.my_location),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Search for a city or allow location access to see current weather',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            heroTag: 'favorites_fab',
+            onPressed: () async {
+              final selectedCity = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const FavoritesPage()),
+              );
+              if (selectedCity != null) {
+                _searchWeather(selectedCity);
+              }
+            },
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            foregroundColor: Theme.of(context).colorScheme.primary,
+            child: const Icon(Icons.favorite),
           ),
         ],
       ),

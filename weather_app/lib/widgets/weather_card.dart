@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/weather_model.dart';
+import '../utils/weather_utils.dart'; // Add this import
 
 class WeatherCard extends StatelessWidget {
   final WeatherModel weather;
@@ -17,11 +18,8 @@ class WeatherCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.blue[400]!, Colors.blue[700]!],
-          ),
+          // UPDATED: Use WeatherUtils to get a dynamic gradient based on condition
+          gradient: WeatherUtils.getWeatherGradient(weather.condition),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
@@ -36,7 +34,7 @@ class WeatherCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            
+
             // Weather Icon and Temperature
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -57,7 +55,7 @@ class WeatherCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            
+
             // Weather Condition
             Text(
               weather.condition,
@@ -67,11 +65,11 @@ class WeatherCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // Weather Details
             _buildWeatherDetails(),
             const SizedBox(height: 20),
-            
+
             // Weather Message
             Text(
               weather.getMessage(),

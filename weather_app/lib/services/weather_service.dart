@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/weather_model.dart';
+import '../models/weather_forecast_model.dart'; // ADD THIS IMPORT
 
 class WeatherService {
   static String? _apiKey;
@@ -53,6 +54,43 @@ class WeatherService {
       }
     } catch (e) {
       throw Exception('Failed to load weather data: $e');
+    }
+  }
+
+  // Forecast methods
+  Future<WeatherForecast> getWeatherForecast(String cityName) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/forecast?q=$cityName&appid=$apiKey&units=metric'),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        return WeatherForecast.fromJson(data);
+      } else if (response.statusCode == 404) {
+        throw Exception('City not found');
+      } else {
+        throw Exception('Failed to load forecast data: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to load forecast data: $e');
+    }
+  }
+
+  Future<WeatherForecast> getWeatherForecastByLocation(double lat, double lon) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/forecast?lat=$lat&lon=$lon&appid=$apiKey&units=metric'),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        return WeatherForecast.fromJson(data);
+      } else {
+        throw Exception('Failed to load forecast data: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to load forecast data: $e');
     }
   }
 }
